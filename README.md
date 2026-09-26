@@ -30,6 +30,7 @@ projeto local/
 ├── .env.example            # modelo versionado, sem segredo
 ├── consensus.py            # orquestração dos três rounds
 ├── openrouter_client.py    # cliente HTTP do OpenRouter
+├── requirements.txt        # dependências Python do projeto
 ├── server.py               # servidor MCP e tool consensus
 ├── test_openrouter.py      # teste manual de conectividade
 └── README.md
@@ -43,8 +44,10 @@ Requer Python 3.12, acesso ao OpenRouter, Node.js para o MCP Inspector e permiss
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "mcp>=2,<3" httpx python-dotenv
+python -m pip install -r requirements.txt
 ```
+
+O `requirements.txt` declara as dependências externas usadas pelos arquivos Python: `mcp>=2,<3`, `httpx` e `python-dotenv`. Imports como `os` e `concurrent.futures` fazem parte da biblioteca padrão do Python; os demais são módulos do próprio projeto.
 
 ## Configurar o OpenRouter
 
@@ -93,7 +96,7 @@ Selecione **Streamable HTTP**, use esse endpoint, liste as tools e teste:
 consensus("<um prompt de teste>")
 ```
 
-Uma execução completa pode fazer até sete chamadas ao OpenRouter: três gerações, três revisões e uma síntese na primeira tentativa.
+Uma execução cuja síntese conclui na primeira tentativa faz sete chamadas ao OpenRouter: três gerações, três revisões e uma síntese. Se a primeira tentativa de síntese falhar e a segunda for necessária, pode fazer até oito chamadas.
 
 ## Secure MCP Tunnel e ChatGPT
 
