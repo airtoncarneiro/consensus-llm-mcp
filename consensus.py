@@ -23,7 +23,7 @@ def run_models(prompt: str, models: list[str]) -> dict[str, str]:
             try:
                 responses[model] = future.result()
             except Exception as exc:
-                print(f"[Arena] Model failed: {model}: {exc}")
+                print(f"[Consensus] Model failed: {model}: {exc}")
 
     # Preserve configured order, excluding failed models.
     return {
@@ -49,34 +49,34 @@ def run_synthesizer(
         except Exception as exc:
             last_error = exc
             print(
-                f"[Arena] Synthesizer failed "
+                f"[Consensus] Synthesizer failed "
                 f"(attempt {attempt}/{max_attempts}): "
                 f"{model}: {exc}"
             )
 
     raise RuntimeError(
-        f"Arena aborted: synthesizer failed after "
+        f"Consensus aborted: synthesizer failed after "
         f"{max_attempts} attempts"
     ) from last_error
 
 
-def run_arena(prompt: str) -> str:
+def run_consensus(prompt: str) -> str:
     models = [
-        os.getenv("ARENA_MODEL_1"),
-        os.getenv("ARENA_MODEL_2"),
-        os.getenv("ARENA_MODEL_3"),
+        os.getenv("CONSENSUS_MODEL_1"),
+        os.getenv("CONSENSUS_MODEL_2"),
+        os.getenv("CONSENSUS_MODEL_3"),
     ]
 
-    synthesizer_model = os.getenv("ARENA_SYNTHESIZER_MODEL")
+    synthesizer_model = os.getenv("CONSENSUS_SYNTHESIZER_MODEL")
 
     if not all(models):
         raise RuntimeError(
-            "Arena models are not fully configured"
+            "Consensus models are not fully configured"
         )
 
     if not synthesizer_model:
         raise RuntimeError(
-            "ARENA_SYNTHESIZER_MODEL is not configured"
+            "CONSENSUS_SYNTHESIZER_MODEL is not configured"
         )
 
     # Round 1 — Independent generation
@@ -87,7 +87,7 @@ def run_arena(prompt: str) -> str:
 
     if len(initial_responses) < 2:
         raise RuntimeError(
-            "Arena aborted: fewer than 2 models completed "
+            "Consensus aborted: fewer than 2 models completed "
             "the generation round"
         )
 
@@ -126,7 +126,7 @@ Do not answer the original prompt yourself.
 
     if len(reviews) < 2:
         raise RuntimeError(
-            "Arena aborted: fewer than 2 models completed "
+            "Consensus aborted: fewer than 2 models completed "
             "the peer-review round"
         )
 
