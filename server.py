@@ -1,6 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 
-from consensus import run_consensus
+from consensus import DeliberationResult, run_consensus, run_consensus_deliberate
 
 
 mcp = MCPServer(
@@ -11,7 +11,9 @@ mcp = MCPServer(
         "the user's original prompt. The consensus tool performs model generation, "
         "peer review, and final synthesis internally. "
         "Return the final answer produced by the consensus tool without performing "
-        "additional model comparison or synthesis yourself."
+        "additional model comparison or synthesis yourself. The "
+        "consensus_deliberate tool instead returns the complete deliberation record "
+        "for client-side synthesis; it never returns a final synthesized answer."
     ),
 )
 
@@ -26,6 +28,17 @@ def consensus(prompt: str) -> str:
     model produces the final consolidated answer.
     """
     return run_consensus(prompt)
+
+
+@mcp.tool()
+def consensus_deliberate(prompt: str) -> DeliberationResult:
+    """Return an ordered three-round record without final synthesis.
+
+    The result always contains initial_responses, peer_reviews,
+    revised_responses, and revision_summary. A model is omitted only from the
+    round it failed; revised_responses and revision_summary have identical keys.
+    """
+    return run_consensus_deliberate(prompt)
 
 
 if __name__ == "__main__":
