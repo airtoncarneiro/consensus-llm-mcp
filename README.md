@@ -83,6 +83,18 @@ python -m pip install -r requirements.txt
 
 O `requirements.txt` declara as dependências externas usadas pelos arquivos Python: `mcp>=2,<3`, `httpx` e `python-dotenv`. Imports como `os` e `concurrent.futures` fazem parte da biblioteca padrão do Python; os demais são módulos do próprio projeto.
 
+Como alternativa, o `Makefile` evita repetir os comandos mais comuns:
+
+```bash
+make setup       # cria .venv e instala as dependências
+make check       # testes, checagem de sintaxe e diff
+make run         # inicia o servidor MCP
+make inspector   # abre o MCP Inspector
+make tunnel-init TUNNEL_ID=tunnel_...  # cria o perfil consensus-local uma vez
+make tunnel-doctor                       # valida o perfil configurado
+make tunnel                              # inicia o Secure MCP Tunnel
+```
+
 ## Configurar o OpenRouter
 
 Crie o `.env` local a partir do arquivo de exemplo e preencha sua chave, que jamais deve ser versionada ou compartilhada:
@@ -147,7 +159,7 @@ Inicialize um perfil local, conforme as opções exibidas pela versão instalada
 ```bash
 tunnel-client help quickstart
 tunnel-client init \
-  --sample sample_mcp_remote_http_noauth \
+	--sample sample_mcp_remote_no_auth \
   --profile consensus-local \
   --tunnel-id '<ID_DO_SEU_TUNNEL>' \
   --mcp-server-url http://127.0.0.1:3000/mcp
