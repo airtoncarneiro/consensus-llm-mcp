@@ -36,8 +36,8 @@
 - Rode, no mínimo:
 
   ```bash
-  python -m unittest -v test_consensus.py
-  python -m py_compile consensus.py server.py test_consensus.py
+  .venv/bin/python -m unittest -v test_consensus.py
+  .venv/bin/python -m py_compile consensus.py server.py test_consensus.py
   git diff --check
   ```
 

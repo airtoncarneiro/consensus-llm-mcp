@@ -13,6 +13,8 @@ O servidor escuta apenas em `127.0.0.1`. Para uso privado no ChatGPT, o **Secure
 
 `hello`, `echo` e `ask_model` não são tools do MCP atual. `openrouter_client.ask_model(prompt, model)` é uma primitive interna usada por `consensus.py` para acessar o OpenRouter.
 
+As duas tools enviam o `prompt` aos modelos configurados via OpenRouter e podem gerar consumo nessa conta. Elas não alteram dados do projeto nem dados de usuários, mas não são marcadas como read-only porque a chamada externa pode produzir cobrança e registros no provedor. Não envie segredos ou dados pessoais desnecessários. O `prompt` aceita de 1 a 8.000 caracteres.
+
 ## Arquitetura
 
 `consensus(prompt)` chama `run_consensus` em `consensus.py`:
@@ -81,7 +83,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-O `requirements.txt` declara as dependências externas usadas pelos arquivos Python: `mcp>=2,<3`, `httpx` e `python-dotenv`. Imports como `os` e `concurrent.futures` fazem parte da biblioteca padrão do Python; os demais são módulos do próprio projeto.
+O `requirements.txt` declara as dependências externas usadas pelos arquivos Python: `mcp>=2,<3`, `httpx`, `python-dotenv` e `pydantic`. Imports como `os`, `typing` e `concurrent.futures` fazem parte da biblioteca padrão do Python; os demais são módulos do próprio projeto.
 
 Como alternativa, o `Makefile` evita repetir os comandos mais comuns:
 

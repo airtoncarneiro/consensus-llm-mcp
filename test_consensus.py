@@ -13,6 +13,7 @@ sys.modules.setdefault("httpx", SimpleNamespace())
 sys.modules.setdefault("dotenv", SimpleNamespace(load_dotenv=lambda: None))
 
 import consensus
+import server
 
 
 MODELS = ["provider/model-a", "provider/model-b", "provider/model-c"]
@@ -220,7 +221,7 @@ class ConsensusTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "must be distinct"):
                 consensus.run_consensus_deliberate("question")
 
-    def test_server_declares_both_public_tools(self):
+    def test_server_declares_safe_public_tool_contracts(self):
         server_module = ast.parse(Path("server.py").read_text(encoding="utf-8"))
         tool_names = {
             node.name
@@ -234,6 +235,27 @@ class ConsensusTests(unittest.TestCase):
             )
         }
         self.assertEqual(tool_names, {"consensus", "consensus_deliberate"})
+
+        for tool_name in tool_names:
+            tool = server.mcp._tool_manager.get_tool(tool_name)
+            self.assertIsNotNone(tool)
+            self.assertEqual(tool.annotations.read_only_hint, False)
+            self.assertEqual(tool.annotations.destructive_hint, False)
+            self.assertEqual(tool.annotations.idempotent_hint, False)
+            self.assertEqual(tool.annotations.open_world_hint, True)
+            self.assertIn("OpenRouter-backed models", tool.description)
+            self.assertEqual(tool.parameters["properties"]["prompt"]["minLength"], 1)
+            self.assertEqual(
+                tool.parameters["properties"]["prompt"]["maxLength"],
+                server.MAX_PROMPT_LENGTH,
+            )
+
+        deliberate = server.mcp._tool_manager.get_tool("consensus_deliberate")
+        self.assertIsNotNone(deliberate.output_schema)
+        self.assertEqual(
+            set(deliberate.output_schema["properties"]),
+            {"initial_responses", "peer_reviews", "revised_responses", "revision_summary"},
+        )
 
 
 if __name__ == "__main__":
