@@ -169,6 +169,22 @@ Windows PowerShell:
 O servidor escuta somente em `127.0.0.1`. Para conectá-lo ao ChatGPT sem
 publicar uma porta, use o Secure MCP Tunnel conforme o [Guia do usuário](USER_GUIDE.md).
 
+## Logs
+
+Além dos logs HTTP do `httpx` e do servidor MCP, cada execução imprime eventos
+descritivos com um identificador curto:
+
+```text
+[Consensus][run=8f31c2] Round 1/3: generating independent responses
+[Consensus][run=8f31c2] Round 1/3 completed: 3 successful responses
+[Consensus][run=8f31c2] Round 2/3: running peer reviews
+[Consensus][run=8f31c2] Round 3/3: synthesizing the final answer
+[Consensus][run=8f31c2] completed successfully
+```
+
+`Deliberate` usa o mesmo formato para `consensus_deliberate`. Os logs não
+registram prompts, respostas completas ou valores de credenciais.
+
 ## Referências oficiais
 
 - [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)

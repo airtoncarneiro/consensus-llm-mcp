@@ -2,6 +2,7 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, TypedDict
+from uuid import uuid4
 
 from openrouter_client import ask_model
 
@@ -26,7 +27,16 @@ class RevisionOutputError(ValueError):
     """A model did not return the required Round 3 protocol payload."""
 
 
-def run_model_tasks(prompts_by_model: dict[str, str]) -> dict[str, str]:
+def log_run(run_type: str, run_id: str, message: str) -> None:
+    print(f"[{run_type}][run={run_id}] {message}")
+
+
+def run_model_tasks(
+    prompts_by_model: dict[str, str],
+    run_type: str | None = None,
+    run_id: str | None = None,
+    round_name: str | None = None,
+) -> dict[str, str]:
     """Run one prompt per model concurrently, preserving supplied task order."""
     responses = {}
     with ThreadPoolExecutor(max_workers=len(prompts_by_model)) as executor:
@@ -39,13 +49,27 @@ def run_model_tasks(prompts_by_model: dict[str, str]) -> dict[str, str]:
             try:
                 responses[model] = future.result()
             except Exception as exc:
-                print(f"[Consensus] Model failed: {model}: {exc}")
+                if run_type and run_id and round_name:
+                    log_run(run_type, run_id, f"{round_name}: model failed: {model}: {exc}")
+                else:
+                    print(f"[Consensus] Model failed: {model}: {exc}")
     return {model: responses[model] for model in prompts_by_model if model in responses}
 
 
-def run_models(prompt: str, models: list[str]) -> dict[str, str]:
+def run_models(
+    prompt: str,
+    models: list[str],
+    run_type: str | None = None,
+    run_id: str | None = None,
+    round_name: str | None = None,
+) -> dict[str, str]:
     """Run the same prompt for all models concurrently."""
-    return run_model_tasks({model: prompt for model in models})
+    return run_model_tasks(
+        {model: prompt for model in models},
+        run_type=run_type,
+        run_id=run_id,
+        round_name=round_name,
+    )
 
 
 def configured_models() -> list[str]:
@@ -151,17 +175,31 @@ def parse_revision_output(model: str, output: object) -> dict[str, Any]:
     return {"revised_response": revised_response, "revision_summary": revision_summary}
 
 
-def run_synthesizer(prompt: str, model: str, max_attempts: int = 2) -> str:
+def run_synthesizer(
+    prompt: str,
+    model: str,
+    max_attempts: int = 2,
+    run_type: str = "Consensus",
+    run_id: str | None = None,
+) -> str:
     last_error = None
     for attempt in range(1, max_attempts + 1):
         try:
             return ask_model(prompt=prompt, model=model)
         except Exception as exc:
             last_error = exc
-            print(
-                f"[Consensus] Synthesizer failed (attempt {attempt}/{max_attempts}): "
-                f"{model}: {exc}"
-            )
+            if run_id:
+                log_run(
+                    run_type,
+                    run_id,
+                    f"Round 3/3: synthesizer failed (attempt {attempt}/{max_attempts}): "
+                    f"{model}: {exc}",
+                )
+            else:
+                print(
+                    f"[Consensus] Synthesizer failed (attempt {attempt}/{max_attempts}): "
+                    f"{model}: {exc}"
+                )
     raise RuntimeError(
         f"Consensus aborted: synthesizer failed after {max_attempts} attempts"
     ) from last_error
@@ -169,13 +207,28 @@ def run_synthesizer(prompt: str, model: str, max_attempts: int = 2) -> str:
 
 def run_consensus(prompt: str) -> str:
     """Preserve the existing consensus tool behavior and final synthesis."""
+    run_id = uuid4().hex[:8]
+    run_type = "Consensus"
     models = configured_models()
     synthesizer_model = os.getenv("CONSENSUS_SYNTHESIZER_MODEL")
     if not synthesizer_model:
         raise RuntimeError("CONSENSUS_SYNTHESIZER_MODEL is not configured")
 
-    initial_responses = run_models(prompt=prompt, models=models)
+    log_run(run_type, run_id, f"started with {len(models)} configured models")
+    log_run(run_type, run_id, "Round 1/3: generating independent responses")
+    initial_responses = run_models(
+        prompt=prompt,
+        models=models,
+        run_type=run_type,
+        run_id=run_id,
+        round_name="Round 1/3",
+    )
     require_minimum_results(initial_responses, "generation")
+    log_run(
+        run_type,
+        run_id,
+        f"Round 1/3 completed: {len(initial_responses)} successful responses",
+    )
     responses_text = format_untrusted_material("INITIAL RESPONSES", initial_responses)
     review_prompt = f"""
 You are participating in a peer-review round.
@@ -200,8 +253,20 @@ For each response, identify:
 
 Do not answer the original prompt yourself.
 """.strip()
-    reviews = run_models(prompt=review_prompt, models=models)
+    log_run(run_type, run_id, "Round 2/3: running peer reviews")
+    reviews = run_models(
+        prompt=review_prompt,
+        models=models,
+        run_type=run_type,
+        run_id=run_id,
+        round_name="Round 2/3",
+    )
     require_minimum_results(reviews, "peer-review")
+    log_run(
+        run_type,
+        run_id,
+        f"Round 2/3 completed: {len(reviews)} successful reviews",
+    )
     synthesis_prompt = f"""
 Produce the final answer to the original prompt.
 
@@ -230,14 +295,37 @@ Preserve all requirements and constraints from the original prompt.
 
 Return only the final answer to the original prompt.
 """.strip()
-    return run_synthesizer(prompt=synthesis_prompt, model=synthesizer_model)
+    log_run(run_type, run_id, "Round 3/3: synthesizing the final answer")
+    result = run_synthesizer(
+        prompt=synthesis_prompt,
+        model=synthesizer_model,
+        run_type=run_type,
+        run_id=run_id,
+    )
+    log_run(run_type, run_id, "completed successfully")
+    return result
 
 
 def run_consensus_deliberate(prompt: str) -> DeliberationResult:
     """Return a three-round deliberation record for client-side synthesis."""
+    run_id = uuid4().hex[:8]
+    run_type = "Deliberate"
     models = configured_models()
-    initial_responses = run_models(prompt=prompt, models=models)
+    log_run(run_type, run_id, f"started with {len(models)} configured models")
+    log_run(run_type, run_id, "Round 1/3: generating independent responses")
+    initial_responses = run_models(
+        prompt=prompt,
+        models=models,
+        run_type=run_type,
+        run_id=run_id,
+        round_name="Round 1/3",
+    )
     require_minimum_results(initial_responses, "generation")
+    log_run(
+        run_type,
+        run_id,
+        f"Round 1/3 completed: {len(initial_responses)} successful responses",
+    )
 
     peer_review_prompts = {}
     for reviewer in initial_responses:
@@ -262,8 +350,19 @@ Evaluate the available responses. Identify material strengths, weaknesses, and
 improvements relevant to answering the original prompt. Do not answer the
 original prompt yourself. Do not review your own response.
 """.strip()
-    peer_reviews = run_model_tasks(peer_review_prompts)
+    log_run(run_type, run_id, "Round 2/3: running peer reviews")
+    peer_reviews = run_model_tasks(
+        peer_review_prompts,
+        run_type=run_type,
+        run_id=run_id,
+        round_name="Round 2/3",
+    )
     require_minimum_results(peer_reviews, "peer-review")
+    log_run(
+        run_type,
+        run_id,
+        f"Round 2/3 completed: {len(peer_reviews)} successful reviews",
+    )
 
     revision_prompts = {}
     for model, initial_response in initial_responses.items():
@@ -307,15 +406,21 @@ Include only material changes of position, conclusion, recommendation, or
 reasoning. Do not include stylistic, wording, formatting, or editorial changes.
 If no material change is warranted, return an empty revision_summary list.
 """.strip()
-    raw_revisions = run_model_tasks(revision_prompts)
+    log_run(run_type, run_id, "Round 3/3: revising responses and validating JSON")
+    raw_revisions = run_model_tasks(
+        revision_prompts,
+        run_type=run_type,
+        run_id=run_id,
+        round_name="Round 3/3",
+    )
     parsed_revisions = {}
     for model, output in raw_revisions.items():
         try:
             parsed_revisions[model] = parse_revision_output(model, output)
         except RevisionOutputError as exc:
-            print(f"[Consensus] Model failed: {model}: {exc}")
+            log_run(run_type, run_id, f"Round 3/3: model failed: {model}: {exc}")
     require_minimum_results(parsed_revisions, "revision")
-    return {
+    result = {
         "initial_responses": initial_responses,
         "peer_reviews": peer_reviews,
         "revised_responses": {
@@ -327,3 +432,10 @@ If no material change is warranted, return an empty revision_summary list.
             for model, result in parsed_revisions.items()
         },
     }
+    log_run(
+        run_type,
+        run_id,
+        f"Round 3/3 completed: {len(parsed_revisions)} valid revisions",
+    )
+    log_run(run_type, run_id, "completed successfully")
+    return result
